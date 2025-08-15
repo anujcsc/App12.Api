@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>People API Frontend</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
+    h1 { margin-top: 0; }
+    table { border-collapse: collapse; margin-top: 1rem; }
+    th, td { border: 1px solid #ccc; padding: .5rem .75rem; }
+    th { background:#f5f5f5; }
+    #people tbody tr:nth-child(even){ background:#fafafa; }
+    .muted{ color:#666; }
+    form { margin-top:2rem; display:grid; gap:.5rem; max-width:320px; }
+    input { padding:.4rem .5rem; }
+    button { padding:.5rem .75rem; cursor:pointer; }
+    footer { margin-top:3rem; font-size:.8rem; color:#666; }
+    .config { background: #f0f8ff; padding: 1rem; margin: 1rem 0; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>People Directory</h1>
+  <div class="config">
+    <p><strong>API Configuration:</strong></p>
+    <input id="apiUrl" placeholder="Enter your API URL (e.g., https://your-api.herokuapp.com)" style="width: 100%; margin-bottom: 0.5rem;" />
+    <button onclick="updateApiUrl()">Update API URL</button>
+    <p class="muted">Current API: <span id="currentApi">Not set</span></p>
+  </div>
+
+  <section>
+    <button id="reload">Reload People</button>
+    <table id="people">
+      <thead>
+        <tr><th>Id</th><th>First Name</th><th>Last Name</th><th>Age</th><th></th></tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Add Person</h2>
+    <form id="addForm">
+      <input name="firstName" placeholder="First name" required />
+      <input name="lastName" placeholder="Last name" required />
+      <input name="age" type="number" min="0" max="130" placeholder="Age" required />
+      <button type="submit">Add</button>
+    </form>
+  </section>
+
+  <footer>
+    <p>This frontend can connect to any compatible People API.</p>
+  </footer>
+
+<script>
+let api = localStorage.getItem('apiUrl') || '';
+const tbody = document.querySelector('#people tbody');
+const reloadBtn = document.getElementById('reload');
+const form = document.getElementById('addForm');
+const currentApiSpan = document.getElementById('currentApi');
+
+function updateApiUrl() {
+  const newUrl = document.getElementById('apiUrl').value.trim();
+  if (newUrl) {
+    api = newUrl.endsWith('/') ? newUrl.slice(0, -1) : newUrl;
+    localStorage.setItem('apiUrl', api);
+    currentApiSpan.textContent = api;
+    document.getElementById('apiUrl').value = '';
+  }
+}
+
+function updateCurrentApiDisplay() {
+  currentApiSpan.textContent = api || 'Not set';
+}
+
+async function load() {
+  if (!api) {
+    tbody.innerHTML = '<tr><td colspan="5">Please set API URL first</td></tr>';
+    return;
+  }
+  
+  try {
+    tbody.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
+    const res = await fetch(`${api}/api/people`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    tbody.innerHTML = '';
+    data.forEach(p => tbody.appendChild(renderRow(p)));
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5">Error: ${err.message}</td></tr>`;
+  }
+}
+
+function renderRow(p) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td>${p.id}</td><td><input value="${p.firstName}"/></td><td><input value="${p.lastName}"/></td><td><input type="number" value="${p.age}" style="width:4rem"/></td><td><button data-act="save">Save</button> <button data-act="del">Delete</button></td>`;
+  tr.querySelector('[data-act="save"]').onclick = async () => {
+    const [fn, ln, age] = tr.querySelectorAll('input');
+    try {
+      await fetch(`${api}/api/people/${p.id}`, { 
+        method:'PUT', 
+        headers:{'Content-Type':'application/json'}, 
+        body: JSON.stringify({ id:p.id, firstName:fn.value, lastName:ln.value, age:+age.value }) 
+      });
+      load();
+    } catch (err) {
+      alert('Save failed: ' + err.message);
+    }
+  };
+  tr.querySelector('[data-act="del"]').onclick = async () => {
+    if(!confirm('Delete this person?')) return;
+    try {
+      await fetch(`${api}/api/people/${p.id}`, { method:'DELETE' });
+      load();
+    } catch (err) {
+      alert('Delete failed: ' + err.message);
+    }
+  };
+  return tr;
+}
+
+reloadBtn.onclick = load;
+form.onsubmit = async e => {
+  e.preventDefault();
+  if (!api) {
+    alert('Please set API URL first');
+    return;
+  }
+  
+  try {
+    const fd = new FormData(form);
+    const person = { firstName: fd.get('firstName'), lastName: fd.get('lastName'), age: +fd.get('age') };
+    await fetch(`${api}/api/people`, { 
+      method:'POST', 
+      headers:{'Content-Type':'application/json'}, 
+      body: JSON.stringify(person) 
+    });
+    form.reset();
+    load();
+  } catch (err) {
+    alert('Add failed: ' + err.message);
+  }
+};
+
+updateCurrentApiDisplay();
+if (api) load();
+</script>
+</body>
+</html>

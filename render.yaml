@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: people-api
+    env: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:8080
+    buildCommand: echo "Build handled by Dockerfile"
+    startCommand: echo "Start handled by Dockerfile"
