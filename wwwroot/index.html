@@ -1,92 +1,63 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <title>People API</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: system-ui, Arial, sans-serif; margin: 2rem; }
-    h1 { margin-top: 0; }
-    table { border-collapse: collapse; margin-top: 1rem; }
-    th, td { border: 1px solid #ccc; padding: .5rem .75rem; }
-    th { background:#f5f5f5; }
-    #people tbody tr:nth-child(even){ background:#fafafa; }
-    .muted{ color:#666; }
-    form { margin-top:2rem; display:grid; gap:.5rem; max-width:320px; }
-    input { padding:.4rem .5rem; }
-    button { padding:.5rem .75rem; cursor:pointer; }
-    footer { margin-top:3rem; font-size:.8rem; color:#666; }
+    body{font-family:system-ui,Arial,sans-serif;margin:2rem;line-height:1.4}
+    h1{margin-top:0}
+    .status{padding:1rem;border:1px solid #ddd;border-radius:6px;max-width:520px}
+    .ok{color:#0a7500;font-weight:600}
+    .fail{color:#b00020;font-weight:600}
+    code{background:#f4f4f4;padding:.15rem .35rem;border-radius:4px;font-size:.9rem}
+    small{color:#666}
   </style>
 </head>
 <body>
-  <h1>People Directory Service</h1>
-  <p class="muted">Simple front page served from <code>wwwroot/index.html</code>. Uses the /api/people endpoints.</p>
+  <h1>People API (VB)</h1>
+  <p>Swagger UI: <a href="/swagger" target="_blank" rel="noopener">/swagger</a></p>
 
-  <section>
-    <button id="reload">Reload People</button>
-    <table id="people">
-      <thead>
-        <tr><th>Id</th><th>First Name</th><th>Last Name</th><th>Age</th><th></th></tr>
-      </thead>
-      <tbody></tbody>
-    </table>
+  <section class="status">
+    <h2 style="margin-top:0">Runtime Status</h2>
+    <p id="check">Checking API...</p>
+    <ul id="details" style="display:none"></ul>
+    <button id="retry" style="display:none">Retry</button>
+    <small id="ts"></small>
   </section>
 
-  <section>
-    <h2>Add Person</h2>
-    <form id="addForm">
-      <input name="firstName" placeholder="First name" required />
-      <input name="lastName" placeholder="Last name" required />
-      <input name="age" type="number" min="0" max="130" placeholder="Age" required />
-      <button type="submit">Add</button>
-    </form>
-  </section>
+  <script>
+    const checkEl = document.getElementById('check');
+    const listEl = document.getElementById('details');
+    const retryBtn = document.getElementById('retry');
+    const tsEl = document.getElementById('ts');
 
-  <footer>
-    <p>Swagger UI: <a href="/swagger" target="_blank">/swagger</a></p>
-  </footer>
+    async function ping(){
+      retryBtn.style.display='none';
+      listEl.style.display='none';
+      checkEl.textContent='Checking API...';
+      tsEl.textContent='';
+      const started = performance.now();
+      try {
+        const res = await fetch('/api/people',{cache:'no-store'});
+        const ms = Math.round(performance.now()-started);
+        if(!res.ok) throw new Error('HTTP '+res.status);
+        const data = await res.json();
+        checkEl.innerHTML = '<span class="ok">API is running</span>';        
+        listEl.innerHTML = ''+
+          `<li>People count: <strong>${data.length}</strong></li>`+
+          `<li>Response time: <strong>${ms} ms</strong></li>`+
+          `<li>Endpoint: <code>/api/people</code></li>`;
+        listEl.style.display='block';
+      } catch(err){
+        checkEl.innerHTML = '<span class="fail">API check failed</span>: '+err.message;
+        retryBtn.style.display='inline-block';
+      } finally {
+        tsEl.textContent='Last updated: '+ new Date().toLocaleString();
+      }
+    }
 
-<script>
-const api = '/api/people';
-const tbody = document.querySelector('#people tbody');
-const reloadBtn = document.getElementById('reload');
-const form = document.getElementById('addForm');
-
-async function load() {
-  tbody.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
-  const res = await fetch(api);
-  const data = await res.json();
-  tbody.innerHTML = '';
-  data.forEach(p => tbody.appendChild(renderRow(p)));
-}
-
-function renderRow(p) {
-  const tr = document.createElement('tr');
-  tr.innerHTML = `<td>${p.id}</td><td><input value="${p.firstName}"/></td><td><input value="${p.lastName}"/></td><td><input type="number" value="${p.age}" style="width:4rem"/></td><td><button data-act="save">Save</button> <button data-act="del">Delete</button></td>`;
-  tr.querySelector('[data-act="save"]').onclick = async () => {
-    const [fn, ln, age] = tr.querySelectorAll('input');
-    await fetch(`${api}/${p.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id:p.id, firstName:fn.value, lastName:ln.value, age:+age.value }) });
-    load();
-  };
-  tr.querySelector('[data-act="del"]').onclick = async () => {
-    if(!confirm('Delete this person?')) return;
-    await fetch(`${api}/${p.id}`, { method:'DELETE' });
-    load();
-  };
-  return tr;
-}
-
-reloadBtn.onclick = load;
-form.onsubmit = async e => {
-  e.preventDefault();
-  const fd = new FormData(form);
-  const person = { firstName: fd.get('firstName'), lastName: fd.get('lastName'), age: +fd.get('age') };
-  await fetch(api, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(person) });
-  form.reset();
-  load();
-};
-
-load();
-</script>
+    retryBtn.addEventListener('click', ping);
+    ping();
+  </script>
 </body>
 </html>
